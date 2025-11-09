@@ -1,0 +1,8 @@
+pandas
+numpy
+scipy
+statsmodels
+google-cloud-bigquery
+kafka-python
+pika
+jupyter

@@ -1,0 +1,2 @@
+-- BigQuery SQL for batch screening (ADF, VR, Hurst tests).
+-- TODO: implement window-based ADF, VR, and Hurst queries.

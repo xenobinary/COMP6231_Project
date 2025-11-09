@@ -1,0 +1,81 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\title{Distributed Stock Price Prediction Using Mean Reversion Signals}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Overview}
+This project implements a two-phase, high-performance mean reversion trading workflow using Google's serverless analytics stack (BigQuery) and a streaming backbone (Kafka or RabbitMQ). Phase~1 performs large-scale batch screening over historical data; Phase~2 generates low-latency real-time signals for execution.
+
+\section*{Objectives}
+\begin{itemize}[leftmargin=*]
+	\item Identify mean-reverting equities using scalable statistical tests across the full universe.
+	\item Produce real-time trading signals by combining technical indicators with minimal latency.
+	\item Build a reproducible, cloud-native pipeline that is cost-aware and easy to operate.
+\end{itemize}
+
+\section*{System Architecture (Two-Phase)}
+	\textbf{Phase 1: Batch Screening (BigQuery, MPP).} A single analytical query executes in parallel across historical OHLCV data using window functions and CTEs. It computes:
+\begin{itemize}[leftmargin=*]
+	\item Augmented Dickey--Fuller (ADF) test for stationarity (mean reversion candidacy)
+	\item Variance Ratio (VR) test to assess random-walk deviations
+	\item Hurst exponent to characterize mean-reverting vs. trending behavior
+\end{itemize}
+The output is a ranked list of tickers with associated scores and thresholds for downstream selection.
+
+\medskip
+\noindent\textbf{Phase 2: Real-Time Signal Generation (Kafka/RabbitMQ).} A streaming pipeline ingests live price updates for the screened tickers. Concurrent workers compute indicators such as MACD, RSI, and ADX in near real-time and combine them into actionable long/flat/short signals suitable for automated execution.
+
+\section*{Methodology}
+\begin{enumerate}[leftmargin=*]
+	\item \textbf{Feature Engineering (Batch):} Compute rolling means/variances, z-scores, and cointegration proxies, alongside ADF/VR/Hurst, per ticker and time horizon.
+	\item \textbf{Candidate Selection:} Filter and rank by a composite mean-reversion score with liquidity and spread constraints.
+	\item \textbf{Signal Logic (Streaming):} Fuse MACD, RSI, ADX, and reversion bands (e.g., z-score thresholds) with debouncing to reduce churn; include basic risk guards (max position, max loss).
+	\item \textbf{Execution Interface:} Emit normalized signals (enter/exit, side, confidence) for an external broker/execution simulator.
+\end{enumerate}
+
+\section*{Data}
+\begin{itemize}[leftmargin=*]
+	\item \textbf{Historical:} Daily/intraday OHLCV stored/queryable in BigQuery for scalable batch analytics.
+	\item \textbf{Real-time:} Price ticks or bars streamed via Kafka/RabbitMQ from a market data source (websocket/feed handler).
+	\item \textbf{Metadata:} Universe definitions, corporate actions, and trading calendars.
+\end{itemize}
+
+\section*{Evaluation}
+Backtests (out-of-sample) and live paper trading will be evaluated by:
+\begin{itemize}[leftmargin=*]
+	\item Risk-adjusted return (Sharpe), max drawdown, hit ratio, turnover, and capacity.
+	\item Transaction-cost and slippage sensitivity.
+	\item End-to-end latency (ingest\,$\to$\,signal) and system reliability (uptime, backlog).
+\end{itemize}
+
+\section*{Timeline (Indicative)}
+\begin{itemize}[leftmargin=*]
+	\item \textbf{Week 1--2:} Data plumbing; BigQuery schemas; batch SQL prototype for ADF/VR/Hurst; initial ranking.
+	\item \textbf{Week 3--4:} Streaming pipeline (Kafka/RabbitMQ) and indicator workers (MACD/RSI/ADX); signal fusion logic.
+	\item \textbf{Week 5:} Backtesting, transaction-cost modeling, and parameter sweeps.
+	\item \textbf{Week 6:} Paper trading, monitoring dashboards, and documentation.
+\end{itemize}
+
+\section*{Risks and Mitigations}
+\begin{itemize}[leftmargin=*]
+	\item \textbf{Data Quality/Latency:} Validate feeds; cache fallbacks; guard against look-ahead bias.
+	\item \textbf{Overfitting:} Use walk-forward splits and simple, robust rules; hold-out validation.
+	\item \textbf{Costs/Slippage:} Include realistic cost models; stress-test at different liquidity tiers.
+	\item \textbf{Cloud Cost Control:} Partitioned tables, scheduled queries, and autoscaling limits.
+\end{itemize}
+
+\section*{Deliverables}
+\begin{itemize}[leftmargin=*]
+	\item BigQuery SQL for batch screening and scoring.
+	\item Streaming services for live indicator computation and signal emission.
+	\item Configuration and runbooks (deployment, monitoring, cost controls).
+	\item Final report with performance results and recommendations.
+\end{itemize}
+
+\end{document}

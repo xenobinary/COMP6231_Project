@@ -1,0 +1,2 @@
+-- BigQuery dataset and table schema definitions for OHLCV data and metadata.
+-- TODO: define schema for historical and metadata tables.

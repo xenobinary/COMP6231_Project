@@ -1,0 +1,44 @@
+## Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Data directories
+data/
+
+# Configuration files
+configs/*.yaml
+
+# Logs directory
+logs/
+*.log
+
+# Environment files
+.env
+
+# Virtual environment directories
+venv/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Docker compose override
+docker-compose.override.yml
+
+# Ignore CSV data files
+*.csv
+
+# LaTeX intermediate files
+*.aux
+*.out
+*.toc
+*.fdb_latexmk
+*.fls
+*.synctex.gz
