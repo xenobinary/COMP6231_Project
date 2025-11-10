@@ -42,3 +42,5 @@ docker-compose.override.yml
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+
+google-cloud-sdk/
