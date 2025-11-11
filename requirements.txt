@@ -4,11 +4,12 @@ google-cloud-bigquery>=3.0.0
 yfinance>=0.2.0
 pandas>=2.0.0
 ta>=0.10.0
-python-dateutil>=2.8.0pandas
+python-dateutil>=2.8.0
 numpy
 scipy
 statsmodels
-google-cloud-bigquery
 kafka-python
 pika
 jupyter
+lxml>=4.9.0
+requests>=2.31.0

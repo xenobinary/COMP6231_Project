@@ -47,11 +47,36 @@ pip install -r requirements.txt
 
 ## Phase 1 Ingestion
 
+This script fetches last-week 1d OHLCV for a symbol universe (S&P 500 by default) and writes directly to BigQuery.
+
+Quick local dry run (no BigQuery):
+
 ```
+SYMBOL_SOURCE=sp500 MAX_SYMBOLS=5 DRY_RUN=true LOOKBACK_DAYS=7 BATCH_SIZE=5 \
 python src/batch/ingestion.py
 ```
 
-Upload CSV to BigQuery or adapt script to load directly (TODO).
+Generate static S&P 500 list (recommended to avoid external fetches):
+
+```
+python scripts/make_sp500_symbols.py
+```
+
+Real BigQuery load:
+
+```
+export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/key.json
+export GCP_PROJECT=your-project-id
+export BQ_DATASET=stock
+export BQ_TABLE=ohlcv_daily
+
+SYMBOL_SOURCE=sp500 \
+SYMBOLS_FILE=data/metadata/sp500_symbols.csv \
+DRY_RUN=false LOOKBACK_DAYS=7 BATCH_SIZE=40 \
+python src/batch/ingestion.py
+```
+
+If credentials are missing, you'll see a helpful error. The script creates the dataset/table if they don't exist, partitioned by `date` and clustered by `symbol`.
 
 Deploy UDFs (example using bq CLI):
 
