@@ -1,76 +1,90 @@
-"""Market data polling producer.
+"""Backtest data producer using historical 5-min OHLCV data from BigQuery.
 
-Polls external data provider APIs (e.g., Alpha Vantage) and publishes
-normalized OHLCV bars to Pub/Sub topics (prices-1m, prices-5m).
-Simplified stub: generates synthetic bars for a small symbol set.
+Reads symbols from Firestore watchlist and publishes each 5-min bar to a Pub/Sub
+topic at a configurable interval (default 5s).
 """
 import os
 import json
 import time
-import random
-from datetime import datetime
-try:
-    from google.cloud import pubsub_v1  # type: ignore
-except Exception:  # pragma: no cover
-    pubsub_v1 = None  # Allows static analysis without dependency installed
 
-SYMBOLS = os.getenv("SYMBOLS", "AAPL,MSFT,GOOG").split(",")
-PROJECT = os.getenv("GCP_PROJECT", "PROJECT")
-TOPIC_1M = os.getenv("PRICES_TOPIC_1M", "prices-1m")
+from google.cloud import firestore, bigquery  # type: ignore
+from google.cloud import pubsub_v1  # type: ignore
+from google.api_core.exceptions import NotFound  # type: ignore
+
+PROJECT = os.getenv("GCP_PROJECT", "comp6231-project")
 TOPIC_5M = os.getenv("PRICES_TOPIC_5M", "prices-5m")
-POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "5"))
 
+WATCHLIST_COLLECTION = os.getenv("WATCHLIST_COLLECTION", "watchlists")
+WATCHLIST_DOC_ID = os.getenv("WATCHLIST_DOC_ID", "adf_hurst_vr_screened")
 
-def synthetic_bar(prev_close: float) -> dict:
-    change = random.uniform(-0.5, 0.5)
-    close = max(1.0, prev_close + change)
-    high = close + random.uniform(0, 0.3)
-    low = close - random.uniform(0, 0.3)
-    open_ = prev_close
-    volume = random.randint(1000, 5000)
-    return {
-        "open": round(open_, 2),
-        "high": round(high, 2),
-        "low": round(low, 2),
-        "close": round(close, 2),
-        "volume": volume,
-        "ts": int(time.time()),
-    }
-
+BQ_DATASET = os.getenv("BQ_DATASET", "stock")
+BQ_TABLE = os.getenv("BQ_TABLE", "ohlcv_5min")
+# How many days back to pull for partition filter (must match table partition by DATE(timestamp))
+LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "7"))
 
 def main():
-    if pubsub_v1 is None:
-        raise RuntimeError("google-cloud-pubsub not installed. Add to requirements.txt")
     publisher = pubsub_v1.PublisherClient()
-    topic_1m_path = publisher.topic_path(PROJECT, TOPIC_1M)
-    topic_5m_path = publisher.topic_path(PROJECT, TOPIC_5M)
-    last_prices = {s: 100.0 + i * 10 for i, s in enumerate(SYMBOLS)}
-    iteration = 0
-    print("Starting synthetic market data producer...")
-    while True:
-        iteration += 1
-        for symbol in SYMBOLS:
-            bar = synthetic_bar(last_prices[symbol])
-            last_prices[symbol] = bar["close"]
-            event = {"symbol": symbol, "interval": "1m", "bar": bar}
+    topic_path = publisher.topic_path(PROJECT, TOPIC_5M)
+    # Ensure Pub/Sub topic exists (auto-create if missing)
+    try:
+        publisher.get_topic(topic=topic_path)
+    except NotFound:
+        publisher.create_topic(name=topic_path)
+
+    db = firestore.Client(project=PROJECT)
+    doc = db.collection(WATCHLIST_COLLECTION).document(WATCHLIST_DOC_ID).get()
+    symbols = (doc.to_dict() or {}).get("symbols", [])
+    if not symbols:
+        print(f"No symbols found in Firestore '{WATCHLIST_COLLECTION}/{WATCHLIST_DOC_ID}'.")
+        return
+
+    client = bigquery.Client(project=PROJECT)
+    table_id = f"{PROJECT}.{BQ_DATASET}.{BQ_TABLE}"
+    sql = f"""
+SELECT symbol, timestamp, open, high, low, close, volume
+FROM `{table_id}`
+WHERE symbol IN UNNEST(@symbols)
+  /* Partition filter required: only pull last N days */
+  AND DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {LOOKBACK_DAYS} DAY)
+ORDER BY timestamp
+"""
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("symbols", "STRING", symbols)
+        ]
+    )
+    df = client.query(sql, job_config=job_config).result().to_dataframe()
+    if df.empty:
+        print("No historical data returned from BigQuery; exiting.")
+        return
+
+    print(
+        f"Publishing bars slice-by-slice (per timestamp then symbols) "
+        f"every {POLL_INTERVAL_SECONDS}s..."
+    )
+    # Ensure we emit in timestamp order, cycling through all symbols at each timestamp
+    df.sort_values(["timestamp", "symbol"], inplace=True)
+    for ts, group in df.groupby("timestamp"):
+        for row in group.itertuples(index=False):
+            event = {
+                "symbol": row.symbol,
+                "interval": "5m",
+                "bar": {
+                    "open": row.open,
+                    "high": row.high,
+                    "low": row.low,
+                    "close": row.close,
+                    "volume": int(row.volume),
+                    "ts": int(row.timestamp.timestamp()),
+                },
+            }
+            print(f"Publishing: {event}")
             publisher.publish(
-                topic_1m_path,
+                topic_path,
                 json.dumps(event).encode("utf-8"),
-                ordering_key=symbol,
             )
-        # Every 5 iterations emit a 5m bar (aggregate last 5 synthetic bars)
-        if iteration % 5 == 0:
-            for symbol in SYMBOLS:
-                # For demo just reuse the last bar
-                bar = synthetic_bar(last_prices[symbol])
-                last_prices[symbol] = bar["close"]
-                event = {"symbol": symbol, "interval": "5m", "bar": bar}
-                publisher.publish(
-                    topic_5m_path,
-                    json.dumps(event).encode("utf-8"),
-                    ordering_key=symbol,
-                )
-        time.sleep(POLL_INTERVAL_SECONDS)
+            time.sleep(POLL_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":
