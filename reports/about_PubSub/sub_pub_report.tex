@@ -1,0 +1,19 @@
+\documentclass[12pt]{article}
+\begin{document}
+\section{Google Cloud Pub/Sub Components} 
+Pub/Sub\cite{pubsub_docs} is an asynchronous and scalable messaging service provided by Google Cloud. It is often used for streaming analytics and data integration pipelines to load and distribute data. 
+
+
+
+Pub/Sub acts as a messaging-oriented middleware\cite{pubsub_docs}, rather than synchronous remote procedure calls (RPCs). 
+
+Transiant/persistant, synchronous/asynchronous\cite{ds_book} are two major dimensions that classify communication mechanisms in distributed systems.
+
+that decouples services producing messages from services processing those messages
+decouples services by allowing them to communicate without direct connections. 
+
+The producers and consumers in Pub/Sub are called publishers and subscribers\cite{pubsub_docs}. Publishers communicate with subscribers asynchronously by broadcasting events. 
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}
