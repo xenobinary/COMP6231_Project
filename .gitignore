@@ -43,4 +43,11 @@ docker-compose.override.yml
 *.fls
 *.synctex.gz
 
+# BibTex intermediate files
+*.bbl
+*.blg
+
+# yikai's personal usage
+Distributed_Systems_4.pdf
+
 google-cloud-sdk/
