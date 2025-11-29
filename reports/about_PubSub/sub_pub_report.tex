@@ -1,18 +1,34 @@
 \documentclass[12pt]{article}
 \begin{document}
 \section{Google Cloud Pub/Sub Components} 
-Pub/Sub\cite{pubsub_docs} is an asynchronous and scalable messaging service provided by Google Cloud. It is often used for streaming analytics and data integration pipelines to load and distribute data. 
+Pub/Sub\cite{pubsub_docs} is an asynchronous and scalable messaging service provided by Google Cloud. It is often used for streaming analytics and data integration pipelines to load and distribute data. It can iteract with other Google Cloud services smoothly. 
 
+Pub/Sub decouples services producing messages from services processing those messages
+decouples services by allowing them to communicate without direct connections\cite{pubsub_docs}. The producers and consumers in Pub/Sub are called publishers and subscribers. Publishers communicate with subscribers asynchronously by broadcasting events. 
 
+In our project, Pub/Sub acts as the bridge between Cloud Run component and the local computer, cloud computing responsible for heavy-duty processing, local computer doing further processing on more sensitive data, which is a popular paradigm in modern big data processing architecture design\cite{BigData}.
 
-Pub/Sub acts as a messaging-oriented middleware\cite{pubsub_docs}, rather than synchronous remote procedure calls (RPCs). 
+Pub/Sub acts as a messaging-oriented middleware\cite{pubsub_docs}, like the products in the same category, KafkaMQ\cite{Kafka}, RabbitMQ, etc. These products share the properties of asynchronous communication, Persistent storage (durable, disk-based, fault-tolerant), 
+scalability through clustering and horizontal expansion, etc.
 
-Transiant/persistant, synchronous/asynchronous\cite{ds_book} are two major dimensions that classify communication mechanisms in distributed systems.
+Other than messaging-oriented middleware, PRC\cite{ds_book} is another major category in communication mechanisms in distributed systems. Remote procedure calls (RPCs) are typical synchronous communication, it allows calling functions on remote machines as if they were local methods.
 
-that decouples services producing messages from services processing those messages
-decouples services by allowing them to communicate without direct connections. 
+Remote Procedure Call (RPC) is well-suited for distributed applications that require fine-grained function calls, such as cloud APIs, and control-plane operations in distributed systems. However, RPC is not ideal for big-data processing or high-throughput streaming workloads, because transferring large volumes of data or handling millions of events per second can create network bottlenecks and scalability issues\cite{Birrell1984RPC}. In such cases, architectures based on message queues, publish-subscribe, or log-based streaming platforms (like Kafka) are more appropriate. 
 
-The producers and consumers in Pub/Sub are called publishers and subscribers\cite{pubsub_docs}. Publishers communicate with subscribers asynchronously by broadcasting events. 
+Decoupling of producers and consumers
+
+Publish–subscribe messaging patterns
+
+Reliable message delivery with acknowledgements and persistence
+
+Fault tolerance via replication and durable storage
+
+Support for event-driven architectures commonly used in large-scale systems
+
+rather than synchronous . 
+
+Transiant/persistant, 
+
 
 \bibliographystyle{plain}
 \bibliography{refs}
