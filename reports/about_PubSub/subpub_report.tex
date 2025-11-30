@@ -1,0 +1,23 @@
+\documentclass[11pt]{article}
+\begin{document}
+\section{Google Cloud Pub/Sub Components} 
+
+Pub/Sub\cite{pubsub_docs} is an asynchronous and scalable messaging service provided by Google Cloud. It is commonly used for streaming analytics and data integration pipelines to load and distribute data, and it integrates smoothly with other Google Cloud services.
+
+In our project, Pub/Sub acts as a bridge between the Cloud Run component and the local computer. Cloud Run handles heavy-duty data processing, while the local computer performs further processing on more fine-grained and sensitive data. This combination is a common approach in modern big data architecture\cite{BigData}.
+
+Pub/Sub belongs to a group of messaging systems called messaging-oriented middleware\cite{pubsub_docs}, such as KafkaMQ\cite{Kafka} and RabbitMQ. These systems share features such as asynchronous communication, persistent storage, fault tolerance, and scalability through clustering and horizontal expansion.
+
+Another common communication mechanism in distributed systems is Remote Procedure Call (RPC)\cite{ds_book}, which allows functions on remote machines to be called as if they were local. RPC is suitable for immediate, fine-grained operations like cloud APIs and control-plane tasks. However, it is less suitable for big data processing, because all data must be fully packaged, sent, and processed as a single unit\cite{Birrell1984RPC}, which becomes inefficient as data volume grows.
+
+Messaging-oriented middleware, on the other hand, is designed for high-throughput pipelines. It avoids the bottlenecks of RPC by using asynchronous communication, lightweight serialization, and log-based storage, allowing large volumes of data to flow efficiently without per-call overhead\cite{kafka_high_throughput}.
+
+What makes it even more suitable for our project is that Pub/Sub implements the publish–subscribe pattern, where consumers subscribe to specific messages from producers. This pattern reduces dependencies between processes and enables highly decoupled systems\cite{ds_book}.
+
+In financial trading scenario, high-volume real-time data is passed through system, and it has to be integrated across heterogeneous sources. The Pub/Sub pattern simplifies this integration, allowing systems in different languages or technologies to communicate without tight coupling\cite{macKenzie2019middlewaremessage}.
+
+Overall, Google Cloud Pub/Sub provides an asynchronous, scalable, and fault-tolerant foundation for high-volume financial data processing. By decoupling publishers and subscribers, it overcomes the limitations of RPC for large datasets and efficiently connects Cloud Run and local processing components. In financial trading systems, Pub/Sub enables real-time, flexible, and reliable integration across heterogeneous subsystems.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}
