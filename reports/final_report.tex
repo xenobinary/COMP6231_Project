@@ -1,0 +1,184 @@
+\documentclass[sigconf,nonacm]{acmart}
+
+% Suppress ACM reference footers since this is a course project
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+% VLDB-style macros from template
+% \newcommand\vldbdoi{XX.XX/XXX.XX}
+\newcommand\vldbpages{XXX-XXX}
+\newcommand\vldbvolume{14}
+\newcommand\vldbissue{1}
+\newcommand\vldbyear{2020}
+\newcommand\vldbauthors{\authors}
+\newcommand\vldbtitle{\shorttitle}
+\newcommand\vldbavailabilityurl{URL_TO_YOUR_ARTIFACTS}
+\newcommand\vldbpagestyle{plain}
+
+% Packages (acmart already loads many common ones; keep extras as needed)
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning}
+
+% Hyperref configuration (acmart loads hyperref; override colors)
+% \hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\title{Cloud-Native Event-Driven Architecture for Algorithmic Trading: A Serverless Approach}
+
+\author{Qiang Xue}
+\affiliation{
+  \institution{40300671}
+}
+% \email{40300671}
+
+\author{Yicheng Cai}
+\affiliation{
+  \institution{26396283}
+}
+% \email{26396283}
+
+\author{Yikai Chen}
+\affiliation{
+  \institution{40302669}
+}
+% \email{40302669}
+
+\author{Yifan Wu}
+\affiliation{
+  \institution{40153584}
+}
+% \email{40153584}
+
+\author{Alexander Sutherland}
+\affiliation{
+  \institution{40321783}
+}
+% \email{40321783}
+
+\date{}
+
+\begin{document}
+
+\begin{abstract}
+We present a cloud-native, event-driven architecture for algorithmic trading built entirely on Google Cloud Platform (GCP). The system separates batch screening from real-time monitoring and uses managed, serverless services--BigQuery, Cloud Run, Pub/Sub, and Firestore--to achieve horizontal scalability, fault tolerance, and low operational overhead. Statistical screening (Hurst exponent, Variance Ratio) runs as massively parallel BigQuery queries to maintain a Firestore watchlist, while distributed Cloud Run producers and local monitors stream and evaluate price data with lightweight indicators (ADX, Bollinger Bands). The design highlights distributed systems principles: loose coupling via messaging, polyglot persistence, autoscaling stateless compute, and geo-replicated storage.
+\end{abstract}
+
+\maketitle
+
+\section{INTRODUCTION}
+Modern trading systems demand scalable data ingestion, resilient computation, and low-latency decisioning. Our goal is to design and implement a distributed pipeline that cleanly separates responsibilities: (i) batch statistical screening at cloud scale, and (ii) real-time signal monitoring with minimal operational burden. We leverage GCP's serverless ecosystem to offload infrastructure concerns while preserving distributed systems guarantees: autoscaling stateless compute (Cloud Run), asynchronous decoupling (Pub/Sub), massively parallel analytics (BigQuery), and durable, consistent operational storage (Firestore). Trading logic is intentionally kept lightweight and modular; the emphasis is on architecture, data flow, and reliability across components.
+
+\section{BACKGROUND}
+This project implements an algorithmic trading system entirely on Google Cloud Platform (GCP) using serverless architecture. We leverage four core GCP services: BigQuery for distributed data analytics, Cloud Run for serverless compute, Pub/Sub for message-oriented middleware, and Firestore for NoSQL document storage. The following sections detail the technical specifications and distributed systems characteristics of each service.
+
+\subsection{Serverless Computing and GCP}
+GCP provides infrastructure, platform, and serverless computing environments across multiple geographic regions \cite{google_cloud_products}. The platform implements fundamental distributed systems principles including data replication, fault tolerance, and horizontal scalability \cite{barroso2013datacenter}.
+
+Serverless computing represents a cloud execution model where the cloud provider dynamically manages server allocation \cite{jonas2019cloud}. From a distributed systems viewpoint, serverless platforms implement \textbf{auto-scaling} through dynamic resource allocation, spawning new container instances in response to incoming loads and terminating idle instances \cite{schleier2021serverless}. \textbf{Fault tolerance} is built-in through automatic request retry and instance replacement \cite{wang2018peeking}. The event-driven nature promotes loose coupling, where services communicate asynchronously through event triggers and message queues \cite{baldini2017serverless}.
+
+\subsection{BigQuery}
+BigQuery is Google's fully managed, serverless data warehouse designed for large-scale analytics \cite{melnik2020dremel}. It separates storage and compute resources, allowing independent scaling based on workload requirements.
+
+The distributed architecture utilizes \textbf{Dremel}, Google's distributed query engine for interactive nested data analysis \cite{melnik2010dremel}. Dremel employs a tree-based serving architecture where queries decompose into smaller sub-queries distributed across thousands of nodes for parallel execution. Results aggregate back up the tree hierarchy. Storage leverages \textbf{Colossus}, Google's distributed file system providing durability through multi-datacenter replication \cite{corbett2013spanner}. Data is stored in columnar format optimized for analytical workloads, enabling efficient compression and minimizing I/O.
+
+BigQuery implements \textbf{strong consistency} guarantees, ensuring reads always reflect recent writes \cite{google_bigquery_consistency}. \textbf{Query optimization} occurs through a distributed query planner analyzing patterns, estimating data sizes, and determining optimal execution strategies including join ordering and partition pruning \cite{melnik2020dremel}. The system dynamically allocates compute resources based on query complexity, automatically parallelizing operations across available slots.
+
+\subsection{Cloud Run}
+Cloud Run is a fully managed compute platform that automatically scales stateless containers \cite{google_cloudrun_docs}. It builds upon Knative, an open-source Kubernetes-based platform for serverless workloads \cite{knative_docs}.
+
+\textbf{Container orchestration} is managed through Kubernetes primitives adapted for serverless execution \cite{burns2018kubernetes}. When requests arrive, Cloud Run automatically instantiates container instances, routes traffic to healthy instances, and scales down to zero when idle. \textbf{Load balancing} distributes incoming requests across multiple container instances using Google's global load balancer \cite{google_cloudrun_docs}. The load balancer performs health checks and removes unhealthy containers, implementing fault tolerance through automatic replacement.
+
+\textbf{Request routing} follows a path through multiple distributed components: global anycast IPs routing users to the nearest Google point of presence, regional load balancers distributing requests within a region, and service meshes handling instance-level routing \cite{google_cloudrun_architecture}. Cloud Run provides \textbf{concurrency control}, allowing each container instance to handle multiple simultaneous requests up to a configurable limit \cite{google_cloudrun_docs}.
+
+\subsection{Pub/Sub}
+Google Cloud Pub/Sub is a fully managed, real-time messaging service enabling asynchronous communication between independent applications \cite{google_pubsub_docs}. It implements the publish-subscribe pattern where publishers send messages to topics without knowledge of subscribers, and vice versa—a fundamental principle in distributed systems design \cite{eugster2003many}.
+
+The architecture provides \textbf{at-least-once delivery} guarantees through message persistence and acknowledgment protocols. Subscribers must acknowledge receipt within a configurable deadline; otherwise, Pub/Sub automatically redelivers the message \cite{google_pubsub_docs}. \textbf{Horizontal scalability} is inherent—the service automatically partitions message flow across distributed servers, handling millions of messages per second \cite{google_pubsub_scalability}.
+
+\textbf{Message ordering} requires special consideration. By default, messages deliver in no particular order to maximize throughput. However, Pub/Sub supports ordering keys guaranteeing messages with the same key are delivered in publication order through affinity routing \cite{google_pubsub_ordering}. \textbf{Geo-replication} capabilities allow topics to replicate messages across multiple regions, improving availability and reducing latency \cite{google_pubsub_docs}.
+
+\subsection{Firestore}
+Firestore is a NoSQL document database built for automatic scaling, high performance, and ease of development \cite{google_firestore_docs}. As a distributed database, it provides strong consistency guarantees, ACID transactions, and automatic multi-region replication.
+
+The distributed architecture builds on Google's \textbf{Spanner} technology, which pioneered TrueTime for globally consistent transactions \cite{corbett2013spanner}. TrueTime leverages GPS and atomic clocks to provide globally synchronized timestamps with bounded uncertainty, enabling external consistency where transaction timestamps properly order committed transactions.
+
+\textbf{Data replication} occurs across multiple zones within a region, following a consensus protocol similar to Paxos where a quorum of replicas must acknowledge writes before commitment \cite{lamport2001paxos}. \textbf{Query processing} is optimized for document-oriented data models with automatic indexing. \textbf{Real-time listeners} enable clients to subscribe to document snapshots and receive immediate change notifications through distributed streaming infrastructure \cite{google_firestore_docs}. \textbf{Transactions} support both optimistic concurrency control through versioning and pessimistic locking mechanisms \cite{google_firestore_transactions}.
+
+
+\section{ALGORITHM TRADING}
+This section summarizes the trading logic at a high level to provide context for the distributed pipeline.
+
+\subsection{Mean Reversion Strategy}
+Prices tend to revert toward a long-run average. Signals buy when price is below typical range and sell when above \cite{pole2007statistical, chan2009quantitative}. We use this only to motivate data flow.
+
+\subsection{Statistical Screening}
+Screening selects symbols with mean-reverting characteristics:
+\begin{itemize}
+    \item \textbf{Hurst Exponent ($H$)}: $H<0.5$ suggests anti-persistence/mean reversion \cite{hurst1951long}.
+    \item \textbf{Variance Ratio (VR)}: $\mathrm{VR}(k)<1$ indicates sublinear variance growth, consistent with mean reversion \cite{lo1988stock}.
+\end{itemize}
+
+\subsection{Technical Indicators}
+Real-time signaling uses simple, robust indicators:
+\begin{itemize}
+    \item \textbf{ADX}: trend strength filter; low ADX favors range-bound conditions \cite{wilder1978new}.
+    \item \textbf{Bollinger Bands}: dynamic bands around moving average; lower-band touches indicate oversold conditions \cite{bollinger2002bollinger}.
+\end{itemize}
+
+\section{SYSTEM ARCHITECTURE}
+Our algorithmic trading system implements a distributed architecture on Google Cloud Platform, leveraging serverless computing for scalability, reliability, and cost efficiency. Figure~\ref{fig:architecture} illustrates the system architecture showing data flow paths and component interactions.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/architecture.png}
+\caption{Distributed System Architecture on Google Cloud Platform}
+\label{fig:architecture}
+\end{figure*}
+
+\subsection{Architecture Overview}
+The system operates in two primary modes: \textbf{screening mode} for identifying trading candidates, and \textbf{monitoring mode} for generating trading signals. The architecture separates batch processing from real-time stream processing, allowing independent scaling. From a distributed systems perspective, the architecture implements event-driven patterns enabling loose coupling through asynchronous message passing via Pub/Sub. Separation of concerns isolates data storage (BigQuery, Firestore), computation (Cloud Run, BigQuery UDFs), and monitoring (local client). Polyglot persistence stores different data types in specialized databases—analytical queries in BigQuery and operational data in Firestore.
+
+\subsection{Initialization and Historical Data Ingestion}
+The initialization component acquires two years of daily price data for all NASDAQ securities from Yahoo Finance and loads it into BigQuery using the Cloud API with batch operations. Parallel data loading partitions symbols into batches, processing concurrently to reduce ingestion time from days to hours. Data is stored in a date-partitioned BigQuery table, allowing the system to scan only relevant partitions when filtering by date ranges. BigQuery's storage layer (Colossus) automatically replicates data across multiple nodes for durability. Separation of storage and compute allows concurrent screening jobs without resource contention.
+
+\subsection{Statistical Screening Query}
+The screening component identifies mean-reverting securities, executing weekly via Cloud Scheduler to maintain an updated watchlist.
+
+\textbf{User-Defined Functions (UDFs).}
+Screening logic uses two custom SQL UDFs. The Hurst Exponent UDF computes mean reversion scores; the Variance Ratio Test UDF validates statistical characteristics. Implementing as UDFs enables massive parallelization where BigQuery distributes computation across thousands of worker nodes.
+
+\textbf{Distributed Query Execution.}
+BigQuery's Dremel engine decomposes queries into execution tree stages. Leaf nodes scan partitions in parallel reading columnar data. Intermediate nodes aggregate price arrays using shuffle infrastructure to colocate symbol records. Root nodes apply screening UDFs and collect results. This tree-based execution achieves horizontal scalability.
+
+\subsection{Watchlist Storage in Firestore}
+Screening results are stored in Firestore as a collection of documents, one per selected symbol. After weekly screening, the system updates the watchlist by adding newly qualified symbols and removing those no longer meeting criteria.
+
+\subsection{Cloud Run Producer and Data Routing}
+The Producer orchestrates retrieval of high-frequency price data for watchlist symbols and publishes to Pub/Sub topics.
+
+\textbf{Dual-Mode Operation.}
+The Producer operates in backtesting mode (retrieving historical 5-minute data from BigQuery) or real-time mode (fetching live data from Yahoo Finance with rate limiting).
+
+\textbf{Cloud Run Deployment.}
+The Producer deploys as a Cloud Run service, auto-scaling instances based on request volume and scaling to zero when inactive. Each instance runs stateless, enabling Cloud Run to freely create, destroy, and migrate instances. Cloud Scheduler triggers the Producer every 5 seconds during market hours.
+
+\textbf{Publishing to Pub/Sub.}
+The Producer publishes messages to symbol-specific Pub/Sub topics containing latest OHLCV data. This provides temporal decoupling—the Producer doesn't know about downstream consumers, and consumers process messages at their own pace. Pub/Sub buffers messages for up to 7 days.
+
+\subsection{Local Monitor and Signal Generation}
+The Monitor subscribes to Pub/Sub topics via pull subscriptions, receives real-time price data, computes technical indicators (ADX and Bollinger Bands), and generates buy-in signals. Running locally provides direct control and immediate notification.
+
+\textbf{Signal Generation Logic.}
+The Monitor uses a two-filter approach: ADX below threshold (e.g., $<25$) indicates range-bound markets suitable for mean reversion; price crossing below lower Bollinger Band suggests oversold conditions. When both conditions are met, a buy-in signal is generated.
+
+\subsection{Daily Fetcher Component}
+A scheduled Cloud Run service executes nightly to update the Daily Data Table with the latest daily prices from Yahoo Finance, ensuring current data for weekly screening.
+
+\section{CONCLUSION}
+This project demonstrates how managed, serverless services can be composed into a robust distributed architecture for algorithmic trading. Batch screening executes as parallel BigQuery jobs that update a Firestore watchlist, while Cloud Run producers and Pub/Sub enable elastic, event-driven real-time monitoring. The resulting system exhibits loose coupling, horizontal scalability, strong consistency for storage, and operational simplicity. Although we employ basic trading indicators, the architecture is strategy-agnostic and readily extensible: additional analytics, alternative data sources, and new consumers can be integrated without disrupting existing components. Future work includes automated deployment, end-to-end observability, and multi-region failover to further strengthen resilience.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}
